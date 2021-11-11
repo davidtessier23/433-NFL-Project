@@ -11,6 +11,7 @@ install.packages("ggrepel", type = "binary")
 install.packages("ggimage", type = "binary")
 install.packages("nflfastR", type = "binary")
 install.packages("gsisdecoder")
+install.packages("ggplot2")
 
 library(tidyverse, warn.conflicts = FALSE)
 library(ggrepel, warn.conflicts = FALSE)
@@ -19,6 +20,7 @@ library(nflfastR, warn.conflicts = FALSE)
 library(dplyr, warn.conflicts = FALSE)
 library(nflreadr, warn.conflicts = FALSE)
 library(nflscrapR, warn.conflicts = FALSE)
+library(ggplot2, warn.conflicts = FALSE)
 
 # makes R prefer not to display numbers in scientific notation
 options(scipen = 9999)
@@ -43,14 +45,13 @@ fd_dropbacks <- data1 %>%
   group_by(posteam) %>%
   summarize(
     scoring_drive = mean(drive_ended_with_score), 
-    epa = mean(epa),
-    wpa = mean(wpa),
-    success_rate = mean(success),
-    yards_per_play = mean(yards_gained), 
-    plays = n()
+    epa_dropback = mean(epa),
+    wpa_dropback = mean(wpa),
+    success_rate_dropback = mean(success),
+    yards_per_dropback_play = mean(yards_gained), 
+    dropback_plays = n()
     ) %>% 
-  ungroup() %>%
-  left_join(teams_colors_logos , by = c('posteam' = 'team_abbr')) 
+  ungroup()
 
 fd_dropbacks %>%
   ggplot(aes(x = plays, y = epa)) +
@@ -76,3 +77,90 @@ fd_dropbacks %>%
   scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
   
 ```
+
+```{r}
+fd_data <- data1 %>%
+  filter(down==1 & qb_scramble==0 & play_type == "run" & wp>=.20 & wp <= .80
+         & half_seconds_remaining>120 & !is.na(epa)) %>%
+  group_by(posteam) %>%
+  summarize(
+    scoring_drive_run = mean(drive_ended_with_score),
+    epa_run = mean(epa),
+    wpa_run = mean(wpa),
+    success_rate_run = mean(success),
+    yards_per_run_play = mean(yards_gained),
+    run_plays = n()
+  ) %>%
+  ungroup()%>%
+  left_join(fd_dropbacks , by = c('posteam' = 'posteam')) %>%
+  left_join(teams_colors_logos , by = c('posteam' = 'team_abbr'))
+
+
+fd_data %>%
+  ggplot(aes(x = epa_run, y = epa_dropback)) +
+  #horizontal line with mean expected points added
+  geom_hline(yintercept = mean(fd_data$epa_dropback),
+            color = "red", linetype = "dashed", alpha=0.5) +
+  #vertical line with mean win probability added
+  geom_vline(xintercept = mean(fd_data$epa_run),
+             color = "red", linetype = "dashed", alpha=0.5) +
+  #add points for the teams with the right colors
+  #cex controls point size and alpha the transparency (alpha = 1 is normal)
+  geom_point(color = fd_data$team_color, cex= (fd_data$success_rate_dropback / fd_data$success_rate_run), alpha = .6) +
+  #add names using ggrepel, which tries to make them not overlap
+  geom_text_repel(aes(label=posteam)) +
+  stat_smooth(geom = 'line', alpha = 0.5, se = FALSE, method = 'lm') +
+  labs(x = "Expected Points Added per Run", 
+       y = "Expected Points Added per QB Dropback",
+       title = "EPA per QB Dropback vs Run Play on 1st Down, 2015-2020",
+       caption = "Data: @nflfastR") +
+  theme_bw() +
+  theme(plot.title = element_text(size = 14, hjust = 0.5, face = "bold")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+
+```
+fd_dropbacks %>%
+  ggplot(aes(x = plays, y = epa)) +
+  #horizontal line with mean expected points added
+  geom_hline(yintercept = mean(fd_dropbacks$epa),
+             color = "red", linetype = "dashed", alpha=0.5) +
+  #vertical line with mean win probability added
+  geom_vline(xintercept =  mean(fd_dropbacks$plays),
+             color = "red", linetype = "dashed", alpha=0.5) +
+  #add points for the teams with the right colors
+  #cex controls point size and alpha the transparency (alpha = 1 is normal)
+  geom_point(color = fd_dropbacks$team_color, cex=fd_dropbacks$plays / 150, alpha = .6) +
+  #add names using ggrepel, which tries to make them not overlap
+  geom_text_repel(aes(label=posteam)) +
+  stat_smooth(geom = 'line', alpha = 0.5, se = FALSE, method = 'lm') +
+  labs(x = "# of QB Dropbacks on 1st Down's", 
+       y = "Expected Points Added per Play",
+       title = "EPA for QB Dropbacks on 1st Down, 2015-2020",
+       caption = "Data: @nflfastR") +
+  theme_bw() +
+  theme(plot.title = element_text(size = 14, hjust = 0.5, face = "bold")) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 10))
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
